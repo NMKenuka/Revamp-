@@ -2,19 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import SidebarLayout from "@/components/SidebarLayout";
-import { authApi, customerApi } from "@/lib/api";
+import { customerApi } from "@/lib/api";
 import { decodeToken } from "@/utils/jwt";
 
-type Customer = { id?: string; userId?: string; name?: string; email?: string; phone?: string };
+// -------- Types
 type Vehicle = { id?: string; customerUserId?: string; make?: string; model?: string; plateNo?: string; year?: number };
 type HistoryItem = {
-  id?: string; vehicleId?: string; title: string;
-  status: "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED" | string;
-  completedAt?: string; cost?: number;
+  id?: string;
+  vehicleId?: string;
+  title: string;
+  status?: string;
+  completedAt?: string | null;
+  cost?: number;
   vehicle?: { plateNo?: string; make?: string; model?: string };
 };
 
-// ------- Updated Color Palette from your image
+// ------- Palette
 const PALETTE = {
   primary: "#0A0A0B",
   cyan: "#00F9FF",
@@ -32,7 +35,6 @@ const PALETTE = {
   lightPurple: "#F3F4FF",
 };
 
-// helpers to make vivid, correct alpha colors
 function hexToRgb(hex: string) {
   const h = hex.replace("#", "");
   const full = h.length === 3 ? h.split("").map(c => c + c).join("") : h;
@@ -44,22 +46,8 @@ function rgba(hex: string, a: number) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-// ---------- KPI Card: vivid brand color + glass sheen (much stronger)
-function StatCard({
-  title,
-  value,
-  hint,
-  emoji,
-  color,
-  delay = 0,
-}: {
-  title: string;
-  value: string;
-  hint?: string;
-  emoji?: string;
-  color: string;
-  delay?: number;
-}) {
+// ---------- UI bits (unchanged visuals)
+function StatCard({ title, value, hint, emoji, color, delay = 0 }: { title: string; value: string; hint?: string; emoji?: string; color: string; delay?: number; }) {
   return (
     <div
       className="rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-105 group relative overflow-hidden border"
@@ -76,33 +64,19 @@ function StatCard({
         boxShadow: `0 12px 28px ${rgba(color, 0.35)}, inset 0 1px 0 rgba(255,255,255,0.32)`,
       }}
     >
-      {/* soft center glow on hover */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-        style={{ background: `radial-gradient(600px 200px at 80% -20%, rgba(255,255,255,.22), transparent)` }}
-      />
-      {/* diagonal shine sweep */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `radial-gradient(600px 200px at 80% -20%, rgba(255,255,255,.22), transparent)` }} />
       <div className="absolute top-0 -left-1/2 w-1/2 h-full -skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:left-[150%] transition-all duration-1000" />
-
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-semibold text-white/95">{title}</span>
           {emoji && <span className="text-2xl transform group-hover:scale-110 transition-transform duration-300">{emoji}</span>}
         </div>
-        <div className="text-4xl font-extrabold mb-2 transform group-hover:scale-105 transition-transform duration-300">
-          {value}
-        </div>
-        {hint && (
-          <div className="text-xs text-white/95 bg-white/15 rounded-lg px-2 py-1 inline-block border border-white/25">
-            {hint}
-          </div>
-        )}
+        <div className="text-4xl font-extrabold mb-2 transform group-hover:scale-105 transition-transform duration-300">{value}</div>
+        {hint && <div className="text-xs text-white/95 bg-white/15 rounded-lg px-2 py-1 inline-block border border-white/25">{hint}</div>}
       </div>
     </div>
   );
 }
-
-// ---------- StatusBadge (unchanged)
 function StatusBadge({ status }: { status: string }) {
   const m: Record<string, { bg: string; text: string; glow: string }> = {
     OPEN: { bg: PALETTE.secondary, text: "white", glow: `${PALETTE.secondary}60` },
@@ -110,39 +84,25 @@ function StatusBadge({ status }: { status: string }) {
     DONE: { bg: PALETTE.success, text: "white", glow: `${PALETTE.success}60` },
     CANCELLED: { bg: PALETTE.danger, text: "white", glow: `${PALETTE.danger}60` },
   };
-  const s = m[status] ?? m.OPEN;
-
+  const key = (status ?? "").toUpperCase().trim();
+  const s = m[key] ?? m.OPEN;
   return (
-    <span
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold shadow-lg hover:scale-105 transition-all duration-300"
-      style={{ backgroundColor: s.bg, color: s.text, boxShadow: `0 4px 20px 0 ${s.glow}` }}
-    >
+    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold shadow-lg transition-all duration-300"
+          style={{ backgroundColor: s.bg, color: s.text, boxShadow: `0 4px 20px 0 ${s.glow}` }}>
       <span className="h-2 w-2 rounded-full bg-white/90" />
-      {status.replace("_", " ")}
+      {key.replace("_", " ")}
     </span>
   );
 }
-
-// ---------- Vehicle Card
 function VehicleCard({ vehicle, index }: { vehicle: Vehicle; index: number }) {
   return (
-    <div
-      className="rounded-2xl p-6 hover:scale-102 transition-all duration-500 hover:shadow-xl group cursor-pointer border border-blue-200 bg-white"
-      style={{
-        animationDelay: `${index * 100}ms`,
-        background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan}80 100%)`,
-      }}
-    >
+    <div className="rounded-2xl p-6 hover:scale-102 transition-all duration-500 hover:shadow-xl group cursor-pointer border border-blue-200 bg-white"
+         style={{ animationDelay: `${index * 100}ms`, background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan}80 100%)` }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm transform group-hover:rotate-12 transition-transform duration-300 shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`,
-                boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60`,
-              }}
-            >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm transform group-hover:rotate-12 transition-transform duration-300 shadow-lg"
+                 style={{ background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`, boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60` }}>
               🚗
             </div>
             <div>
@@ -152,19 +112,15 @@ function VehicleCard({ vehicle, index }: { vehicle: Vehicle; index: number }) {
               <div className="text-sm text-gray-600 mt-1">{vehicle.year || "Year not specified"}</div>
             </div>
           </div>
-
           <div className="flex items-center gap-3">
-            <span
-              className="px-3 py-2 rounded-lg font-semibold text-sm border border-cyan-300 shadow-sm flex items-center gap-2"
-              style={{ backgroundColor: PALETTE.lightCyan, color: PALETTE.cyan }}
-            >
+            <span className="px-3 py-2 rounded-lg font-semibold text-sm border border-cyan-300 shadow-sm flex items-center gap-2"
+                  style={{ backgroundColor: PALETTE.lightCyan, color: PALETTE.cyan }}>
               <span>📋</span>
               {vehicle.plateNo ?? "No plate"}
             </span>
           </div>
         </div>
       </div>
-
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-blue-200">
         <span className="text-xs text-gray-600 font-medium">Vehicle Status</span>
         <span className="text-xs px-2 py-1 rounded-full bg-white/80 text-gray-700 font-semibold">Active</span>
@@ -172,44 +128,36 @@ function VehicleCard({ vehicle, index }: { vehicle: Vehicle; index: number }) {
     </div>
   );
 }
-
-// ---------- History Card
 function HistoryCard({ history }: { history: HistoryItem }) {
   return (
-    <div
-      className="rounded-2xl p-6 hover:scale-102 transition-all duration-500 hover:shadow-xl group border border-green-200 bg-white"
-      style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen} 0%, ${PALETTE.lightCyan}80 100%)` }}
-    >
+    <div className="rounded-2xl p-6 hover:scale-102 transition-all duration-500 hover:shadow-xl group border border-green-200 bg-white"
+         style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen} 0%, ${PALETTE.lightCyan}80 100%)` }}>
       <div className="flex items-center gap-4 mb-6">
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg transform group-hover:rotate-12 transition-transform duration-300 shadow-lg"
-          style={{ background: `linear-gradient(135deg, ${PALETTE.success}, ${PALETTE.cyan})`, boxShadow: `0 4px 20px 0 ${PALETTE.success}60` }}
-        >
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg transform group-hover:rotate-12 transition-transform duration-300 shadow-lg"
+             style={{ background: `linear-gradient(135deg, ${PALETTE.success}, ${PALETTE.cyan})`, boxShadow: `0 4px 20px 0 ${PALETTE.success}60` }}>
           🔧
         </div>
         <div className="flex-1">
           <h3 className="text-xl font-bold text-gray-900">Latest Service</h3>
           <p className="text-sm text-gray-600 mt-1">Most recent service record</p>
         </div>
-        <StatusBadge status={history.status} />
+        <StatusBadge status={(history.status ?? "").toString()} />
       </div>
 
       <div className="space-y-4">
-        <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold flex items-center gap-2" style={{ color: PALETTE.secondary }}>
-              <span>🛠️</span>
-              Service
+              <span>🛠️</span> Service
             </span>
             <span className="font-bold text-gray-900 text-right text-sm">{history.title}</span>
           </div>
         </div>
 
-        <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold flex items-center gap-2" style={{ color: PALETTE.secondary }}>
-              <span>🚙</span>
-              Vehicle
+              <span>🚙</span> Vehicle
             </span>
             <span className="font-bold text-gray-900 text-right text-sm">
               {history.vehicle?.make} {history.vehicle?.model}
@@ -218,14 +166,15 @@ function HistoryCard({ history }: { history: HistoryItem }) {
           </div>
         </div>
 
-        {history.completedAt && (
-          <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm hover:shadow-md transition-shadow">
+        {!!history.completedAt && (
+          <div className="bg-white/80 rounded-xl p-4 border border-green-100 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold flex items-center gap-2" style={{ color: PALETTE.secondary }}>
-                <span>📅</span>
-                Date
+                <span>📅</span> Date
               </span>
-              <span className="font-bold text-gray-900 text-sm">{new Date(history.completedAt).toLocaleDateString()}</span>
+              <span className="font-bold text-gray-900 text-sm">
+                {new Date(history.completedAt).toLocaleDateString()}
+              </span>
             </div>
           </div>
         )}
@@ -234,8 +183,7 @@ function HistoryCard({ history }: { history: HistoryItem }) {
           <div className="bg-gradient-to-r from-green-100 to-cyan-100 rounded-xl p-4 border border-green-200 shadow-sm mt-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold flex items-center gap-2" style={{ color: PALETTE.cyan }}>
-                <span>💰</span>
-                Total Cost
+                <span>💰</span> Total Cost
               </span>
               <span className="text-xl font-bold text-gray-900">Rs. {history.cost.toLocaleString()}</span>
             </div>
@@ -245,7 +193,6 @@ function HistoryCard({ history }: { history: HistoryItem }) {
     </div>
   );
 }
-
 function greetNow() {
   const h = new Date().getHours();
   if (h < 12) return "Morning";
@@ -253,33 +200,76 @@ function greetNow() {
   return "Evening";
 }
 
+// ---------- Page
 export default function CustomerDashboard() {
   const [user, setUser] = useState<{ username?: string; email?: string } | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [recent, setRecent] = useState<HistoryItem[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // ✅ Completed count is computed from FULL history
   const stats = useMemo(() => {
-    const active = recent.filter((r) => r.status !== "DONE" && r.status !== "CANCELLED").length;
-    const completed = recent.filter((r) => r.status === "DONE").length;
-    return { active, completed };
-  }, [recent]);
+    const norm = (s?: string) => (s ?? "").toString().trim().toUpperCase();
+    const isDone = (h: HistoryItem) =>
+      norm(h.status) === "DONE" || !!(h.completedAt && h.completedAt !== "null" && h.completedAt !== "");
+    const completed = history.filter(isDone).length;
 
-  const latestHistory = recent[0];
+    const inactive = (h: HistoryItem) => norm(h.status) === "DONE" || norm(h.status) === "CANCELLED" || !!h.completedAt;
+    const active = history.filter(h => !inactive(h)).length;
+
+    return { active, completed };
+  }, [history]);
+
+  // Newest record for the card
+  const latestHistory = history[0];
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
-    const decoded: any = decodeToken(token);
-    setUser({ username: decoded?.username, email: decoded?.email });
+    if (token) {
+      const decoded: any = decodeToken(token);
+      setUser({ username: decoded?.username, email: decoded?.email });
+    }
+
     (async () => {
       try {
-        const [vRes, hRes] = await Promise.all([customerApi("/api/vehicles"), customerApi("/api/history")]);
-        setVehicles(Array.isArray(vRes) ? vRes : []);
-        const hist = Array.isArray(hRes) ? hRes : [];
-        hist.sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
-        setRecent(hist.slice(0, 1));
+        const [vRes, hRes] = await Promise.all([
+          customerApi("/api/vehicles"),
+          customerApi("/api/history"),
+        ]);
+
+        const vehiclesList: Vehicle[] = Array.isArray(vRes) ? vRes : (vRes?.content ?? vRes?.items ?? []);
+        const historyRaw: HistoryItem[] = Array.isArray(hRes) ? hRes : (hRes?.content ?? hRes?.items ?? []);
+
+        // Map of vehicles
+        const vmap = new Map<string, Vehicle>();
+        vehiclesList.forEach(v => { if (v?.id) vmap.set(v.id, v); });
+        setVehicles(vehiclesList);
+
+        // Enrich + normalize statuses
+        const enriched = historyRaw.map(h => {
+          const vehicle = (!h.vehicle && h.vehicleId && vmap.has(h.vehicleId))
+            ? (() => { const v = vmap.get(h.vehicleId)!; return { make: v.make, model: v.model, plateNo: v.plateNo }; })()
+            : h.vehicle;
+
+        const normalizedStatus = (h.status ?? "").toString().trim().toUpperCase();
+          return { ...h, vehicle, status: normalizedStatus };
+        });
+
+        // Debug once: see distinct statuses coming from API
+        const uniq = Array.from(new Set(enriched.map(h => h.status ?? "")));
+        // eslint-disable-next-line no-console
+        console.debug("[Dashboard] distinct statuses:", uniq);
+
+        // Sort newest first by completedAt (falls back to title to keep order stable)
+        enriched.sort((a, b) => {
+          const A = a.completedAt || "";
+          const B = b.completedAt || "";
+          if (A !== B) return B.localeCompare(A);
+          return (b.title || "").localeCompare(a.title || "");
+        });
+
+        setHistory(enriched);
       } catch (e: any) {
         setErr(e?.message ?? "Failed to load");
       } finally {
@@ -288,7 +278,7 @@ export default function CustomerDashboard() {
     })();
   }, []);
 
-  if (loading)
+  if (loading) {
     return (
       <SidebarLayout>
         <div className="min-h-screen flex items-center justify-center bg-white">
@@ -300,14 +290,12 @@ export default function CustomerDashboard() {
         </div>
       </SidebarLayout>
     );
+  }
 
-  if (err)
+  if (err) {
     return (
       <SidebarLayout>
-        <div
-          className="rounded-2xl p-6 border border-red-300"
-          style={{ background: `linear-gradient(135deg, ${PALETTE.lightRed} 0%, #FFEBEE 100%)` }}
-        >
+        <div className="rounded-2xl p-6 border border-red-300" style={{ background: `linear-gradient(135deg, ${PALETTE.lightRed} 0%, #FFEBEE 100%)` }}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl text-white" style={{ backgroundColor: PALETTE.danger }}>
               ⚠️
@@ -320,31 +308,28 @@ export default function CustomerDashboard() {
         </div>
       </SidebarLayout>
     );
+  }
 
   return (
     <SidebarLayout>
       <div className="min-h-screen bg-white p-6">
         {/* Header */}
-        <div
-          className="rounded-2xl p-8 mb-8 hover:shadow-xl transition-all duration-500 border border-cyan-300"
-          style={{ background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan} 100%)` }}
-        >
+        <div className="rounded-2xl p-8 mb-8 hover:shadow-xl transition-all duration-500 border border-cyan-300"
+             style={{ background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan} 100%)` }}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-cyan-700 text-sm font-semibold mb-2 tracking-wider">{user?.email ?? ""}</div>
               <h2 className="text-4xl font-bold text-gray-900 mb-3">{`Good ${greetNow()}, ${user?.username ?? "Customer"}!`}</h2>
               <p className="text-gray-700 text-lg">Welcome to your premium vehicle service dashboard</p>
             </div>
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl transform hover:rotate-12 transition-transform duration-500 shadow-lg text-white"
-              style={{ background: `linear-gradient(135deg, ${PALETTE.cyan}, ${PALETTE.info})`, boxShadow: `0 8px 32px 0 ${PALETTE.cyan}60` }}
-            >
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl transform hover:rotate-12 transition-transform duration-500 shadow-lg text-white"
+                 style={{ background: `linear-gradient(135deg, ${PALETTE.cyan}, ${PALETTE.info})`, boxShadow: `0 8px 32px 0 ${PALETTE.cyan}60` }}>
               👋
             </div>
           </div>
         </div>
 
-        {/* KPI Cards — now rich, on-brand */}
+        {/* KPIs (now correct) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
           <StatCard title="Active Jobs" value={String(stats.active)} hint="Currently in progress" emoji="🛠️" color={PALETTE.secondary} delay={0} />
           <StatCard title="Completed" value={String(stats.completed)} hint="Successfully done" emoji="✅" color={PALETTE.success} delay={200} />
@@ -353,17 +338,14 @@ export default function CustomerDashboard() {
 
         {/* Content */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          {/* Vehicles */}
           <section className="xl:col-span-2">
-            <div
-              className="rounded-2xl p-6 hover:shadow-xl transition-all duration-500 border border-blue-300 h-full"
-              style={{ background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan}80 100%)` }}
-            >
+            <div className="rounded-2xl p-6 hover:shadow-xl transition-all duration-500 border border-blue-300 h-full"
+                 style={{ background: `linear-gradient(135deg, ${PALETTE.lightBlue} 0%, ${PALETTE.lightCyan}80 100%)` }}>
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`, boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60` }}
-                  >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                       style={{ background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`, boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60` }}>
                     🚗
                   </div>
                   <div>
@@ -371,19 +353,15 @@ export default function CustomerDashboard() {
                     <p className="text-gray-600 text-sm mt-1">Manage your registered vehicles</p>
                   </div>
                 </div>
-                <span
-                  className="text-sm font-bold text-white px-4 py-2 rounded-full shadow-lg"
-                  style={{ background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`, boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60` }}
-                >
+                <span className="text-sm font-bold text-white px-4 py-2 rounded-full shadow-lg"
+                      style={{ background: `linear-gradient(135deg, ${PALETTE.secondary}, ${PALETTE.info})`, boxShadow: `0 4px 20px 0 ${PALETTE.secondary}60` }}>
                   {vehicles.length} vehicles
                 </span>
               </div>
 
               {vehicles.length === 0 ? (
-                <div
-                  className="rounded-2xl border-2 border-dashed border-cyan-300 p-12 text-center text-gray-600 hover:border-cyan-500 transition-all duration-500"
-                  style={{ background: `linear-gradient(135deg, ${PALETTE.lightCyan}50, ${PALETTE.lightBlue}50)` }}
-                >
+                <div className="rounded-2xl border-2 border-dashed border-cyan-300 p-12 text-center text-gray-600 hover:border-cyan-500 transition-all duration-500"
+                     style={{ background: `linear-gradient(135deg, ${PALETTE.lightCyan}50, ${PALETTE.lightBlue}50)` }}>
                   <div className="text-5xl mb-4">🚗</div>
                   <div className="font-bold text-gray-700 text-xl mb-2">No vehicles found</div>
                   <div className="text-gray-600">Add your first vehicle to get started</div>
@@ -391,24 +369,21 @@ export default function CustomerDashboard() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2">
                   {vehicles.map((v, index) => (
-                    <VehicleCard key={v.id} vehicle={v} index={index} />
+                    <VehicleCard key={v.id ?? `${v.make}-${v.model}-${index}`} vehicle={v} index={index} />
                   ))}
                 </div>
               )}
             </div>
           </section>
 
+          {/* Recent Service */}
           <section className="xl:col-span-1">
-            <div
-              className="rounded-2xl p-6 hover:shadow-xl transition-all duration-500 border border-green-300 h-full"
-              style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen} 0%, ${PALETTE.lightCyan}80 100%)` }}
-            >
+            <div className="rounded-2xl p-6 hover:shadow-xl transition-all duration-500 border border-green-300 h-full"
+                 style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen} 0%, ${PALETTE.lightCyan}80 100%)` }}>
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${PALETTE.success}, ${PALETTE.cyan})`, boxShadow: `0 4px 20px 0 ${PALETTE.success}60` }}
-                  >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                       style={{ background: `linear-gradient(135deg, ${PALETTE.success}, ${PALETTE.cyan})`, boxShadow: `0 4px 20px 0 ${PALETTE.success}60` }}>
                     🔧
                   </div>
                   <div>
@@ -421,10 +396,8 @@ export default function CustomerDashboard() {
               {latestHistory ? (
                 <HistoryCard history={latestHistory} />
               ) : (
-                <div
-                  className="rounded-2xl border-2 border-dashed border-green-300 p-8 text-center text-gray-600 hover:border-green-500 transition-all duration-500"
-                  style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen}50, ${PALETTE.lightCyan}50)` }}
-                >
+                <div className="rounded-2xl border-2 border-dashed border-green-300 p-8 text-center text-gray-600 hover:border-green-500 transition-all duration-500"
+                     style={{ background: `linear-gradient(135deg, ${PALETTE.lightGreen}50, ${PALETTE.lightCyan}50)` }}>
                   <div className="text-4xl mb-4">🔧</div>
                   <div className="font-bold text-gray-700 text-lg mb-2">No service history</div>
                   <div className="text-gray-600 text-sm">Your service records will appear here</div>

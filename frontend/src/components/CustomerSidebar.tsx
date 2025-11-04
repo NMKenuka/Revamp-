@@ -34,19 +34,27 @@ export default function CustomerSidebar() {
       className="hidden md:flex md:flex-col md:w-64 md:shrink-0 min-h-screen border-r bg-white"
       style={{ borderColor: PALETTE.softRing }}
     >
-      {/* Header strip with subtle glassy gradient */}
+      {/* Header */}
       <div
-        className="px-5 py-4 font-semibold text-white tracking-wide"
+        className="px-5 py-4 font-semibold text-white tracking-wide flex items-center gap-3 sticky top-0 z-10"
         style={{
           background: `linear-gradient(90deg, ${PALETTE.blue} 0%, ${PALETTE.sky} 100%)`,
           boxShadow: "inset 0 -1px 0 rgba(255,255,255,.25)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
         }}
       >
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white"
+          aria-hidden
+        >
+          ✨
+        </span>
         Revamp • Customer
       </div>
 
-      {/* Nav */}
-      <nav className="p-3 space-y-1">
+      {/* Navigation links with improved spacing */}
+      <nav className="px-4 py-6 space-y-3">
         {items.map((it) => {
           const active = pathname === it.href;
           return (
@@ -55,9 +63,10 @@ export default function CustomerSidebar() {
               href={it.href}
               aria-current={active ? "page" : undefined}
               className={[
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
+                "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium",
+                "transition-all duration-300 ease-out will-change-transform",
                 active
-                  ? "text-white shadow-sm"
+                  ? "text-white"
                   : "text-gray-700 hover:text-gray-900",
               ].join(" ")}
               style={
@@ -65,43 +74,63 @@ export default function CustomerSidebar() {
                   ? {
                       background: `linear-gradient(90deg, ${PALETTE.blue} 0%, ${PALETTE.sky} 100%)`,
                       boxShadow:
-                        "0 4px 14px rgba(62,146,204,.18), inset 0 1px 0 rgba(255,255,255,.25)",
+                        "0 6px 20px rgba(62,146,204,.25), inset 0 1px 0 rgba(255,255,255,.25)",
+                      border: "1px solid rgba(255,255,255,.35)",
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                      transform: "translateY(-1px)",
                     }
                   : {
-                      background: PALETTE.softBlue, // soft, elegant idle state
+                      background: "rgba(241,249,255,.8)", // softBlue with transparency
                       boxShadow: "inset 0 0 0 1px " + PALETTE.softRing,
+                      border: "1px solid " + PALETTE.softRing,
+                      backdropFilter: "blur(4px)",
+                      WebkitBackdropFilter: "blur(4px)",
                     }
               }
             >
-              {/* Active accent bar */}
+              {/* Accent bar for active link */}
               <span
                 className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-full"
+                style={{ background: active ? "rgba(255,255,255,.9)" : "transparent" }}
+              />
+
+              <span className="text-base">{it.emoji}</span>
+              <span className="truncate">{it.label}</span>
+
+              {/* Hover glass sheen */}
+              <span
+                className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{
-                  background: active
-                    ? "rgba(255,255,255,.9)"
-                    : "transparent",
+                  background:
+                    "linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0))",
                 }}
               />
-              <span className="text-base">{it.emoji}</span>
-              <span>{it.label}</span>
-
-              {/* Hover sheen */}
-              <span className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: "linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0))" }} />
             </Link>
           );
         })}
       </nav>
 
       {/* Support card */}
-      <div className="mt-auto p-3">
+      <div className="mt-auto p-4">
         <div
-          className="rounded-xl px-3 py-2 text-xs text-gray-700 ring-1"
-          style={{ ringColor: PALETTE.softRing, background: PALETTE.softMint }}
+          className="rounded-xl px-4 py-3 text-xs text-gray-700 flex items-center gap-2"
+          style={{
+            background: "rgba(242,252,248,.9)", // softMint with transparency
+            border: "1px solid " + PALETTE.softRing,
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
         >
-          Need help? <span className="font-semibold">support@revamp.com</span>
+          <span className="text-base" aria-hidden>
+            💬
+          </span>
+          Need help?{" "}
+          <span className="font-semibold truncate">support@revamp.com</span>
         </div>
       </div>
+
+      <div className="h-4" />
     </aside>
   );
 }
